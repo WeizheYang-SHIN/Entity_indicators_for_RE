@@ -35,25 +35,26 @@ import platform
 import numpy as np
 import pickle
 import json
+import nltk
 
 flags = tf.flags
 
 FLAGS = flags.FLAGS
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 if os.name == 'nt':
-    bert_path = './chinese_L-12_H-768_A-12/'
+    bert_path = './uncased_L-12_H-768_A-12/'
     root_path = './'
 else:
-    bert_path = './chinese_L-12_H-768_A-12/'
+    bert_path = './uncased_L-12_H-768_A-12/'
     root_path = './'
 
 # %%
 ## Required parameters
 flags.DEFINE_string(
-    "data_dir", "./data/8_features_data_8_1_1",
+    "data_dir", "./data/8_features_Eng_data_8_1_1",
     "The input data dir. Should contain the .tsv files (or other data files) "
     "for the task.")
 
@@ -145,29 +146,34 @@ flags.DEFINE_integer(
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
 
-def getPOSleft(text):
-    POS = []
-    for words in text:
-        words = words.strip()
-        if words == '#' or len(words) == 0:
-            POS.append('None')
-        else:
-            word = words[-1].strip()
-            for word, flag in jieba.posseg.cut(word):
-                POS.append(flag)
-    return POS
+# def getPOSleft(text):
+#     POS = []
+#     for words in text:
+#         words = words.strip()
+#         if words == '#' or len(words) == 0:
+#             POS.append('None')
+#         else:
+#             word = words[-1].strip()
+#             for word, flag in jieba.posseg.cut(word):
+#                 POS.append(flag)
+#     return POS
+#
+#
+# def getPOSright(text):
+#     POS = []
+#     for words in text:
+#         words = words.strip()
+#         if words == '#' or len(words) == 0:
+#             POS.append('None')
+#         else:
+#             word = words[0].strip()
+#             for word, flag in jieba.posseg.cut(word):
+#                 POS.append(flag)
+#     return POS
 
-
-def getPOSright(text):
-    POS = []
-    for words in text:
-        words = words.strip()
-        if words == '#' or len(words) == 0:
-            POS.append('None')
-        else:
-            word = words[0].strip()
-            for word, flag in jieba.posseg.cut(word):
-                POS.append(flag)
+def get_POS(text):
+    text_list = nltk.word_tokenize(text)
+    POS = nltk.pos_tag(text_list)[0][1] #打标签
     return POS
 
 
@@ -276,24 +282,25 @@ class DataProcessor(object):
         entity_types = ['VEH', 'WEA', 'GPE', 'PER', 'LOC', 'ORG', 'FAC']
         lines = open(input_file, 'r', encoding='utf-8').readlines()
         for line in lines:
-            entity_position = line.split(' ')[0].strip()  # 实体相对位置
-            left = ' '.join(line.split(' ')[1].strip())  # 左边部分
-            entity_1 = ' '.join(line.split(' ')[2].strip())  # 实体1
-            middle = ' '.join(line.split(' ')[3].strip())
-            entity_2 = ' '.join(line.split(' ')[4].strip())
-            right = ' '.join(line.split(' ')[5].strip())
-            entity_1_type = ''.join(line.split(' ')[6].strip())
-            entity_2_type = ''.join(line.split(' ')[7].strip())
-            entity_1_subtype = ''.join(line.split(' ')[8].strip())
-            entity_2_subtype = ''.join(line.split(' ')[9].strip())
+            elements_list = line.split('\\')
+            entity_position = elements_list[0].strip()  # 实体相对位置
+            left = ''.join(elements_list[1].strip())  # 左边部分
+            entity_1 = ''.join(elements_list[2].strip())  # 实体1
+            middle = ''.join(elements_list[3].strip())
+            entity_2 = ''.join(elements_list[4].strip())
+            right = ''.join(elements_list[5].strip())
+            entity_1_type = ''.join(elements_list[6].strip())
+            entity_2_type = ''.join(elements_list[7].strip())
+            entity_1_subtype = ''.join(elements_list[8].strip())
+            entity_2_subtype = ''.join(elements_list[9].strip())
             if entity_2_type not in entity_types:
-                entity_2_type = ''.join(line.split(' ')[8].strip())
-                entity_1_subtype = ''.join(line.split(' ')[7].strip())
-                entity_2_subtype = ''.join(line.split(' ')[9].strip())
-            entity_1_head = ' '.join(line.split(' ')[10].strip())
-            entity_2_head = ' '.join(line.split(' ')[11].strip())
-            sentence = ' '.join(line.split(' ')[12].strip())
-            relation = line.split(' ')[13].strip()
+                entity_2_type = ''.join(elements_list[8].strip())
+                entity_1_subtype = ''.join(elements_list[7].strip())
+                entity_2_subtype = ''.join(elements_list[9].strip())
+            entity_1_head = ''.join(elements_list[10].strip())
+            entity_2_head = ''.join(elements_list[11].strip())
+            sentence = ''.join(elements_list[12].strip())
+            relation = elements_list[13].strip()
             if relation not in ['Negative', 'PHYS', 'ART', 'GEN-AFF', 'ORG-AFF', 'PART-WHOLE', 'PER-SOC']:
                 print(line)
             data.append([left, entity_1, middle, entity_2, right, entity_1_type, entity_2_type, entity_1_subtype,
@@ -326,10 +333,18 @@ class DataProcessor(object):
         Subtype_Entity2 = x_text9
         Head_Entity1 = x_text10
         Head_Entity2 = x_text11
-        LeftPos_Entity1 = getPOSleft(x_text1)
-        RightPos_Entity1 = getPOSright(x_text3)
-        LeftPos_Entity2 = getPOSleft(x_text3)
-        RightPos_Entity2 = getPOSright(x_text5)
+
+        LeftPos_Entity1 = []
+        RightPos_Entity1 = []
+        LeftPos_Entity2 = []
+        RightPos_Entity2 = []
+        for part in x_text1:
+            LeftPos_Entity1.append(get_POS(part.split(" ")[-1]))
+        for part in x_text3:
+            RightPos_Entity1.append(get_POS(part.split(" ")[0]))
+            LeftPos_Entity2.append(get_POS(part.split(" ")[-1]))
+        for part in x_text5:
+            RightPos_Entity2.append(get_POS(part.split(" ")[0]))
 
         Featute_1 = concate(RightPos_Entity1, Type_Entity1)
         Featute_2 = concate(LeftPos_Entity1, Type_Entity1)
@@ -354,12 +369,12 @@ class Relation_Extraction(DataProcessor):
         """See base class."""
         return self._create_examples(
             # self._read_tsv(os.path.join(data_dir, "train.json")), "train")
-            self._read_tsv(os.path.join(data_dir, 'All_8_features_train.txt')), "train")
+            self._read_tsv(os.path.join(data_dir, '8_features_Eng_train.txt')), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, 'All_8_features_dev.txt')), "dev")
+            self._read_tsv(os.path.join(data_dir, '8_features_Eng_dev.txt')), "dev")
 
     def get_test_examples(self, data_dir):
         """See base class."""
@@ -416,17 +431,6 @@ class Relation_Extraction(DataProcessor):
             entity1_head = lines[0][14][i]
             entity2_head = lines[0][15][i]
             sentence = lines[1][i]
-            if ',' in entity1:
-                entity1 = entity1.replace(', ', '')
-            if ',' in entity2:
-                entity2 = entity2.replace(', ', '')
-            if ',' in sentence:
-                sentence = sentence.replace(', ', '')
-            for ii in range(len(sentence) - 2):
-                n_grams.append(sentence[ii:ii + 3])
-            for ii in n_grams:
-                n_grams_str = n_grams_str + ' ' + ii
-            n_grams_str = n_grams_str.strip()
 
             sentence_copy = sentence
             RightPos_Entity1 = f1.split('_')[0]
@@ -436,10 +440,10 @@ class Relation_Extraction(DataProcessor):
             entity1_instead = '<L_' + LeftPos_Entity1 + '_' + entity1_type + '_1>' + entity1 + '</R_' + RightPos_Entity1 + '_' + entity1_type + '_1>'
             entity2_instead = '<L_' + LeftPos_Entity2 + '_' + entity2_type + '_2>' + entity2 + '</R_' + RightPos_Entity2 + '_' + entity2_type + '_2>'
 
-            mark_1 = '<' + entity1_type + '_1>'
-            mark_2 = '</' + entity1_type + '_1>'
-            mark_3 = '<' + entity2_type + '_2>'
-            mark_4 = '</' + entity2_type + '_2>'
+            # mark_1 = '<' + entity1_type + '_1>'
+            # mark_2 = '</' + entity1_type + '_1>'
+            # mark_3 = '<' + entity2_type + '_2>'
+            # mark_4 = '</' + entity2_type + '_2>'
             # 实验3:左 + <类型>实体1<类型> + 中  + <类型>实体2<类型>+ 右
 
             # if entity1 == '1' and entity2 == '1':
@@ -451,34 +455,34 @@ class Relation_Extraction(DataProcessor):
             #     sentence2 = sentence2.replace(entity1,entity1_instead)
             #     sentence3 = sentence3.replace(entity2,entity2_instead)
             #     sentence = sentence1 + sentence2 + sentence3
-            if "1 死 1 重" in sentence:
-                sentence = sentence.replace("1 死 1 重",
-                                            '<' + entity1_type + '_1> ' + '1' + ' </' + entity1_type + '_1> ' + '死 ' +
-                                            '<' + entity2_type + '_2> ' + '1' + ' </' + entity2_type + '_2> ' + '重')
-            else:
-                try:
-                    if len(entity1) < len(entity2):
-                        sentence = sentence.replace(entity2, entity2_instead)
-                        sentence = sentence.replace(entity1, entity1_instead)
-                    elif entity2 in entity1 and sentence.index(entity1) == sentence.index(entity2):
-                        sentence = sentence.replace(entity1, entity1_instead)
-                        sentence = sentence.replace(entity2, entity2_instead)
-                    elif sentence.index(entity1) == sentence.index(entity2) and len(entity1) == len(entity2):
-                        sentence = sentence.replace(entity1, entity1_instead)
-                        sentence = sentence.replace(entity2, entity2_instead)
-                    elif sentence.index(entity1) != sentence.index(entity2):
-                        sentence = sentence.replace(entity1, entity1_instead)
-                        sentence = sentence.replace(entity2, entity2_instead)
-                    else:
-                        sentence = sentence.replace(entity1, entity1_instead)
-                        sentence = sentence[0:sentence.index(entity1_instead) + len(entity1_instead)] + sentence[
-                                                                                                        sentence.index(
-                                                                                                            entity1_instead) + len(
-                                                                                                            entity1_instead):].replace(
-                            entity2, entity2_instead)
-                except:
-                    print(sentence, '***1:', entity1, '***2:', entity2)
-            all_features = f1 + " " + f2 + " " + f3 + " " + f4 + " " + f5 + " " + f6 + " " + f7 + " " + f8 + " " + sentence
+            # if "1 死 1 重" in sentence:
+            #     sentence = sentence.replace("1 死 1 重",
+            #                                 '<' + entity1_type + '_1> ' + '1' + ' </' + entity1_type + '_1> ' + '死 ' +
+            #                                 '<' + entity2_type + '_2> ' + '1' + ' </' + entity2_type + '_2> ' + '重')
+            # else:
+            try:
+                if len(entity1) < len(entity2):
+                    sentence = sentence.replace(entity2, entity2_instead)
+                    sentence = sentence.replace(entity1, entity1_instead)
+                elif entity2 in entity1 and sentence.index(entity1) == sentence.index(entity2):
+                    sentence = sentence.replace(entity1, entity1_instead)
+                    sentence = sentence.replace(entity2, entity2_instead)
+                elif sentence.index(entity1) == sentence.index(entity2) and len(entity1) == len(entity2):
+                    sentence = sentence.replace(entity1, entity1_instead)
+                    sentence = sentence.replace(entity2, entity2_instead)
+                elif sentence.index(entity1) != sentence.index(entity2):
+                    sentence = sentence.replace(entity1, entity1_instead)
+                    sentence = sentence.replace(entity2, entity2_instead)
+                else:
+                    sentence = sentence.replace(entity1, entity1_instead)
+                    sentence = sentence[0:sentence.index(entity1_instead) + len(entity1_instead)] + sentence[
+                                                                                                    sentence.index(
+                                                                                                        entity1_instead) + len(
+                                                                                                        entity1_instead):].replace(
+                        entity2, entity2_instead)
+            except:
+                print(sentence, '***1:', entity1, '***2:', entity2)
+            all_features = sentence
 
             # all_features  = ''
             # atomic_features = []
@@ -684,13 +688,13 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
         segment_ids.append(1)
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
-    mark_index = []
-    feature_index = []
+    mark_index = ['1'] * 4
+    feature_index = ['1'] * 28
     word_index = []
-    for id,seg in enumerate(tokens):
-        feature_index.append(str(id))
-        if seg in ['1','2','3','4']:
-            break
+    # for id,seg in enumerate(tokens):
+    #     feature_index.append(str(id))
+    #     if seg in ['1','2','3','4']:
+    #         break
     # try:
     #     check = 0
     #     for id_2,seg in enumerate(tokens[id + 1:]):
@@ -744,8 +748,8 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
     # except:
     #     pass
 
-    for id_word,seg in enumerate(tokens[id + 1:]):
-            word_index.append(str(id_word + id + 1))
+    for id_word,seg in enumerate(tokens[0:]):
+            word_index.append(str(id_word))
 
     feature_length = len(feature_index)
     if feature_length > 41:
@@ -762,10 +766,10 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
             mark_index.append(str('0'))
 
     word_length = len(word_index)
-    if word_length > 80:
-        word_index = word_index[0:80]
-    if word_length < 80:
-        for add_id in range(80-word_length):
+    if word_length > 100:
+        word_index = word_index[0:100]
+    if word_length < 100:
+        for add_id in range(100-word_length):
             word_index.append(str('0'))
 
 
@@ -886,7 +890,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
         "mark_index": tf.FixedLenFeature([28], tf.int64),
         "feature_index": tf.FixedLenFeature([41], tf.int64),
         # "head_index": tf.FixedLenFeature([5], tf.int64),
-        "word_index": tf.FixedLenFeature([80], tf.int64),
+        "word_index": tf.FixedLenFeature([100], tf.int64),
         "is_real_example": tf.FixedLenFeature([], tf.int64),
     }
 
@@ -1105,11 +1109,13 @@ def create_cnn_attention_model(bert_config, is_training, input_ids, input_mask, 
 
 
 class CNN_model():
-    def __init__(self, embedding, embedding_mark, embedding_feature,embedding_word, num_classes, embedding_size, filter_sizes, num_filters, l2_reg_lambda=0.0001):
+    def __init__(self, embedding,
+                 # embedding_mark, embedding_feature,
+                 embedding_word, num_classes, embedding_size, filter_sizes, num_filters, l2_reg_lambda=0.0001):
         self.embedding_size = embedding_size
         self.embedding = embedding
-        self.embedding_mark = embedding_mark
-        self.embedding_feature = embedding_feature
+        # self.embedding_mark = embedding_mark
+        # self.embedding_feature = embedding_feature
         self.embedding_word = embedding_word
         self.num_classes = num_classes
         self.dropout_keep_prob = 0.9
@@ -1280,13 +1286,13 @@ def create_model_cnn(bert_config, is_training, input_ids, input_mask, segment_id
 
     embedding = model.get_sequence_output()
     # embedding = model.get_pooled_output()
-    print("111111111", embedding.shape)
-    embedding_mark = batch_gather(embedding, mark_index, 28)
+    # print("111111111", embedding.shape)
+    # embedding_mark = batch_gather(embedding, mark_index, 28)
     # embedding_mark = tf.gather_nd(embedding, [[[0, 0], [0, 3], [0,5], [0,6]], [[1,2], [1,4], [1,2], [1,3]]])
-    print("111111111", embedding_mark.shape)
-    embedding_feature = batch_gather(embedding, feature_index, 41)
-    print("111111111", embedding_feature.shape)
-    embedding_word = batch_gather(embedding, word_index,80)
+    # print("111111111", embedding_mark.shape)
+    # embedding_feature = batch_gather(embedding, feature_index, 41)
+    # print("111111111", embedding_feature.shape)
+    embedding_word = batch_gather(embedding, word_index, 100)
     print("111111111", embedding_word.shape)
     # embedding_head = batch_gather(embedding, head_index,5)
     # print("111111111", embedding_head.shape)
@@ -1305,7 +1311,7 @@ def create_model_cnn(bert_config, is_training, input_ids, input_mask, segment_id
 
     hidden_size = embedding.shape[-1].value
 
-    cnn = CNN_model(embedding=embedding,embedding_mark=embedding_mark,embedding_feature=embedding_feature,
+    cnn = CNN_model(embedding=embedding,# embedding_mark=embedding_mark,embedding_feature=embedding_feature,
                     embedding_word=embedding_word,num_classes=num_labels,
                     embedding_size=hidden_size, filter_sizes=[1, 2, 3, 4], num_filters=50)
 
@@ -1753,7 +1759,7 @@ def generate_pred_file(tags_list, tags, inf_path, outf_path):
             # if count_sum == 50:
             #     break
             line = line.strip()
-            line = line.split(' ')
+            line = line.split('\\')
             # print(line)
             sent = line[-2].strip()
             test_label = line[-1].strip()
@@ -1840,9 +1846,9 @@ if __name__ == "__main__":
     tags = dict()
     i = 0
     flag = 0
-    inf_path = './data/8_features_data_8_1_1/All_8_features_test.txt'
+    inf_path = './data/8_features_Eng_data_8_1_1/8_features_Eng_test.txt'
     outf_path = './output/__Predict_test.txt'
-    with open('./data/8_features_data_8_1_1/tags.txt', 'r', encoding='utf-8') as tagf:
+    with open('./data/8_features_Eng_data_8_1_1/tags.txt', 'r', encoding='utf-8') as tagf:
         for line in tagf.readlines():
             tags_list.append(line.strip())
             tags[line.strip()] = i
